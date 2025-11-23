@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+motor
+python-multipart
+jinja2
+pycups; sys_platform == 'linux'
+pywin32; sys_platform == 'win32'
+slowapi
+python-magic-bin; sys_platform == 'win32'
+pydantic
+pydantic-settings
+python-dotenv
+websockets
+aiofiles
+python-jose[cryptography]
+bcrypt
+email-validator
