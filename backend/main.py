@@ -33,7 +33,7 @@ app.add_middleware(
 async def root():
     return {"message": "Automatic Document Printing Machine API is running"}
 
-from routers import upload, print as print_router, status, websocket, admin, user
+from routers import upload, print as print_router, status, websocket, admin, user, machine
 
 app.include_router(upload.router)
 app.include_router(print_router.router)
@@ -41,6 +41,7 @@ app.include_router(status.router)
 app.include_router(websocket.router)
 app.include_router(admin.router)
 app.include_router(user.router)
+app.include_router(machine.router)
 
 from database import db
 

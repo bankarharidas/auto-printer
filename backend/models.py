@@ -28,6 +28,7 @@ class DocumentBase(BaseModel):
     upload_time: datetime = Field(default_factory=datetime.utcnow)
     status: PrintStatus = PrintStatus.UPLOADED
     print_options: PrintOptions
+    machine_id: Optional[str] = None
 
 class DocumentCreate(DocumentBase):
     file_path: str
@@ -58,6 +59,13 @@ class PrintJob(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     message: Optional[str] = None
 
+class Machine(BaseModel):
+    id: str = Field(..., alias="_id")
+    name: str
+    location: str
+    status: str = "online"
+
 class AdminUser(BaseModel):
     username: str
     password_hash: str
+

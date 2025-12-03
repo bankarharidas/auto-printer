@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, Info, User, Shield, X } from 'lucide-react';
+import { Upload, FileText, Info, User, Shield, X, QrCode } from 'lucide-react';
+import QRCodeDisplay from '../components/QRCodeDisplay';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
@@ -107,6 +108,17 @@ const Home: React.FC = () => {
                             <p className="text-slate-400 mt-2">Machine Online</p>
                             <p className="text-xs text-slate-500 mt-4">Python Backend on Windows Embedded / Pi</p>
                         </div>
+                    </div>
+                </div>
+
+                {/* QR Code Section */}
+                <div className="max-w-md mx-auto mt-12">
+                    <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                        <h3 className="text-xl font-bold mb-4 flex items-center justify-center gap-2">
+                            <QrCode className="w-6 h-6 text-blue-400" />
+                            Scan to Upload
+                        </h3>
+                        <QRCodeDisplay machineId="machine_01" machineName="Kiosk #1" />
                     </div>
                 </div>
 

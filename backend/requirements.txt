@@ -15,3 +15,9 @@ aiofiles
 python-jose[cryptography]
 bcrypt
 email-validator
+# Document conversion libraries
+PyPDF2
+Pillow
+python-docx
+reportlab
+docx2pdf; sys_platform == 'win32'

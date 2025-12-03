@@ -1,52 +1,72 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Upload as UploadIcon, Printer, Home, FileText, Combine } from 'lucide-react';
 import axios from 'axios';
 
 const Upload: React.FC = () => {
     const navigate = useNavigate();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [searchParams] = useSearchParams();
+    const machineId = searchParams.get('machine_id');
 
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [copies, setCopies] = useState(1);
-    const [colorMode, setColorMode] = useState<'bw' | 'color'>('bw');
+    const [colorMode, setColorMode] = useState<'bw' | 'color'>('bw'); // Default B&W
+    const [mergeFiles, setMergeFiles] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const selectedFile = e.target.files[0];
-            // Basic validation
-            if (selectedFile.size > 10 * 1024 * 1024) {
-                setError("File size exceeds 10MB limit.");
-                return;
+        if (e.target.files) {
+            const selectedFiles = Array.from(e.target.files);
+
+            // Validate each file
+            for (const file of selectedFiles) {
+                if (file.size > 10 * 1024 * 1024) {
+                    setError("Each file must be less than 10MB");
+                    return;
+                }
             }
-            setFile(selectedFile);
+
+            setFiles(prev => [...prev, ...selectedFiles]);
             setError(null);
         }
     };
 
+    const removeFile = (index: number) => {
+        setFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleUpload = async () => {
-        if (!file) return;
+        if (files.length === 0) {
+            setError("Please select at least one file");
+            return;
+        }
 
         setIsUploading(true);
         setError(null);
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('copies', copies.toString());
-        formData.append('color_mode', colorMode);
-
         try {
-            const response = await axios.post('http://localhost:8000/upload', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            if (mergeFiles && files.length > 1) {
+                // Merge multiple files
+                const formData = new FormData();
+                files.forEach(file => formData.append('files', file));
+                formData.append('copies', copies.toString());
+                formData.append('color_mode', colorMode);
+                if (machineId) formData.append('machine_id', machineId);
 
-            // Navigate to status page with document ID
-            navigate(`/status/${response.data._id}`);
+                const response = await axios.post('http://localhost:8000/merge-and-upload', formData);
+                navigate(`/status/${response.data._id}`);
+            } else {
+                // Upload single file or multiple separate files
+                const formData = new FormData();
+                formData.append('file', files[0]);
+                formData.append('copies', copies.toString());
+                formData.append('color_mode', colorMode);
+                if (machineId) formData.append('machine_id', machineId);
 
+                const response = await axios.post('http://localhost:8000/upload', formData);
+                navigate(`/status/${response.data._id}`);
+            }
         } catch (err: any) {
             console.error(err);
             setError(err.response?.data?.detail || "Upload failed. Please try again.");
@@ -56,128 +76,156 @@ const Upload: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white p-6 flex flex-col items-center">
-            <div className="w-full max-w-2xl space-y-8">
+        <div className="min-h-screen bg-slate-900 text-white p-4">
+            <div className="max-w-3xl mx-auto space-y-6">
 
                 {/* Header */}
-                <div className="text-center space-y-2">
-                    <h2 className="text-3xl font-bold">Upload Document</h2>
-                    <p className="text-slate-400">Select your file and print options</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-2xl font-bold">Upload & Print</h2>
+                        <p className="text-slate-400 text-sm">PDF, DOCX, JPG supported</p>
+                        {machineId && (
+                            <p className="text-blue-400 text-sm mt-1">Connected to Machine: {machineId}</p>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+                    >
+                        <Home className="w-4 h-4" />
+                        Home
+                    </button>
                 </div>
 
-                {/* File Selection Area */}
-                <div
-                    className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer
-            ${file ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-400 bg-slate-800/50'}
-          `}
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept=".pdf,.docx,.jpg,.jpeg"
-                    />
-
-                    {file ? (
-                        <div className="text-center space-y-4">
-                            <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
-                                <FileText className="w-8 h-8 text-white" />
-                            </div>
-                            <div>
-                                <p className="text-xl font-semibold">{file.name}</p>
-                                <p className="text-sm text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                                className="text-sm text-red-400 hover:text-red-300"
-                            >
-                                Remove File
-                            </button>
+                {/* File Upload Area */}
+                <div className="bg-slate-800 rounded-xl p-6 space-y-4">
+                    <label className="block">
+                        <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-700/50 transition">
+                            <input
+                                type="file"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept=".pdf,.docx,.jpg,.jpeg"
+                                multiple
+                            />
+                            <UploadIcon className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                            <p className="text-lg font-semibold mb-1">Click to select files</p>
+                            <p className="text-sm text-slate-400">PDF, DOCX, JPG (max 10MB each)</p>
                         </div>
-                    ) : (
-                        <div className="text-center space-y-4">
-                            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto">
-                                <UploadIcon className="w-8 h-8 text-slate-400" />
-                            </div>
-                            <div>
-                                <p className="text-xl font-semibold">Click to Upload</p>
-                                <p className="text-sm text-slate-400">PDF, DOCX, JPG (Max 10MB)</p>
-                            </div>
+                    </label>
+
+                    {/* Selected Files */}
+                    {files.length > 0 && (
+                        <div className="space-y-2">
+                            {files.map((file, index) => (
+                                <div key={index} className="flex items-center justify-between bg-slate-700 rounded-lg p-3">
+                                    <div className="flex items-center gap-3">
+                                        <FileText className="w-5 h-5 text-blue-400" />
+                                        <div>
+                                            <p className="font-medium">{file.name}</p>
+                                            <p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => removeFile(index)}
+                                        className="text-red-400 hover:text-red-300 text-sm px-3 py-1 hover:bg-slate-600 rounded transition"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
 
+                {/* Print Options */}
+                <div className="bg-slate-800 rounded-xl p-6 space-y-4">
+                    <h3 className="text-lg font-semibold mb-4">Print Options</h3>
+
+                    {/* Copies */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">Number of Copies</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={copies}
+                            onChange={(e) => setCopies(parseInt(e.target.value) || 1)}
+                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+
+                    {/* Color Mode */}
+                    <div>
+                        <label className="block text-sm font-medium mb-3">Print Mode</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setColorMode('bw')}
+                                className={`p-4 rounded-lg border-2 transition ${colorMode === 'bw'
+                                    ? 'border-blue-500 bg-blue-500/20'
+                                    : 'border-slate-600 hover:border-slate-500'
+                                    }`}
+                            >
+                                <p className="font-semibold">⚫ Black & White</p>
+                                <p className="text-xs text-slate-400 mt-1">Default</p>
+                            </button>
+                            <button
+                                onClick={() => setColorMode('color')}
+                                className={`p-4 rounded-lg border-2 transition ${colorMode === 'color'
+                                    ? 'border-blue-500 bg-blue-500/20'
+                                    : 'border-slate-600 hover:border-slate-500'
+                                    }`}
+                            >
+                                <p className="font-semibold">🌈 Color</p>
+                                <p className="text-xs text-slate-400 mt-1">Premium</p>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Merge Option */}
+                    {files.length > 1 && (
+                        <div className="border-t border-slate-700 pt-4">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={mergeFiles}
+                                    onChange={(e) => setMergeFiles(e.target.checked)}
+                                    className="w-5 h-5 rounded bg-slate-700 border-slate-600"
+                                />
+                                <div>
+                                    <p className="font-medium flex items-center gap-2">
+                                        <Combine className="w-4 h-4" />
+                                        Merge all files into one document
+                                    </p>
+                                    <p className="text-xs text-slate-400">Combine {files.length} files before printing</p>
+                                </div>
+                            </label>
+                        </div>
+                    )}
+                </div>
+
+                {/* Error Message */}
                 {error && (
-                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-lg flex items-center gap-3">
-                        <AlertCircle className="w-5 h-5" />
-                        <span>{error}</span>
+                    <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 text-red-400">
+                        {error}
                     </div>
                 )}
 
-                {/* Options */}
-                {file && (
-                    <div className="bg-slate-800 p-6 rounded-xl space-y-6 animate-fade-in">
-                        <div className="flex items-center justify-between">
-                            <label className="text-lg font-medium">Number of Copies</label>
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={() => setCopies(Math.max(1, copies - 1))}
-                                    className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-xl font-bold"
-                                >
-                                    -
-                                </button>
-                                <span className="text-2xl font-bold w-8 text-center">{copies}</span>
-                                <button
-                                    onClick={() => setCopies(Math.min(100, copies + 1))}
-                                    className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-xl font-bold"
-                                >
-                                    +
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <label className="text-lg font-medium">Color Mode</label>
-                            <div className="flex bg-slate-700 p-1 rounded-lg">
-                                <button
-                                    onClick={() => setColorMode('bw')}
-                                    className={`px-4 py-2 rounded-md transition-all ${colorMode === 'bw' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                                >
-                                    Black & White
-                                </button>
-                                <button
-                                    onClick={() => setColorMode('color')}
-                                    className={`px-4 py-2 rounded-md transition-all ${colorMode === 'color' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                                >
-                                    Color
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Action Button */}
+                {/* Upload Button */}
                 <button
                     onClick={handleUpload}
-                    disabled={!file || isUploading}
-                    className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-3
-            ${!file || isUploading
-                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                            : 'bg-green-600 hover:bg-green-500 text-white transform hover:-translate-y-1'
-                        }
-          `}
+                    disabled={files.length === 0 || isUploading}
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-xl font-bold text-lg transition flex items-center justify-center gap-2"
                 >
                     {isUploading ? (
                         <>
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                            Processing...
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Uploading...
                         </>
                     ) : (
                         <>
-                            <Check className="w-6 h-6" />
-                            Upload & Send to Printer
+                            <Printer className="w-5 h-5" />
+                            Upload & Print
                         </>
                     )}
                 </button>
